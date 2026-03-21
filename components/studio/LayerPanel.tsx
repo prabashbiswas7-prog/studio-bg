@@ -77,7 +77,7 @@ export default function LayerPanel({ layers, onChange }: Props) {
                     <div style={{ marginTop: 6 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                         <span style={{ fontSize: 10, color: 'var(--t3)' }}>Amount (px)</span>
-                        <span style={{ fontSize: 10, color: 'var(--acc)', fontFamily: 'var(--font-mono)' }}>{layer.params.amount}</span>
+                        <span style={{ fontSize: 10, color: 'var(--acc)', fontFamily: 'var(--font-mono)' }}>{layer.params.amount as number}</span>
                       </div>
                       <input
                         type="range" min={1} max={40} value={layer.params.amount as number}
@@ -90,7 +90,7 @@ export default function LayerPanel({ layers, onChange }: Props) {
                     <div style={{ marginTop: 6 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                         <span style={{ fontSize: 10, color: 'var(--t3)' }}>Spacing (px)</span>
-                        <span style={{ fontSize: 10, color: 'var(--acc)', fontFamily: 'var(--font-mono)' }}>{layer.params.spacing}</span>
+                        <span style={{ fontSize: 10, color: 'var(--acc)', fontFamily: 'var(--font-mono)' }}>{layer.params.spacing as number}</span>
                       </div>
                       <input
                         type="range" min={2} max={20} value={layer.params.spacing as number}
