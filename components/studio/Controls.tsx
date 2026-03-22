@@ -539,7 +539,7 @@ function ToolControls({ tool, params: p, up, uploadImgRef }: {
       </Section>
     </>
 
-    case 'custom-tile': return <UploadSection params={p} up={onUpdateParam} uploadImgRef={uploadImgRef} />
+    case 'custom-tile': return <UploadSection params={p} up={up} uploadImgRef={uploadImgRef} />
 
     default: return null
   }
