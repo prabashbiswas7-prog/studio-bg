@@ -40,51 +40,52 @@ export default function Studio({ initialTool }: { initialTool: ToolSlug }) {
   const [pendingFmt, setPendingFmt] = useState<string>('png')
   const [mobileTab, setMobileTab]   = useState<MobileTab>('controls')
 
-  // Store canvas size in a ref so tool switches don't reset it
+  // Keep canvas size in ref so tool switches never touch it
   const canvasWRef = useRef(1920)
   const canvasHRef = useRef(1080)
 
-  // History stored as ref so undo/redo always sees latest
+  // History
   const histRef = useRef<HistoryEntry[]>([])
   const histIdx = useRef(-1)
   const uploadImgRef = useRef<HTMLImageElement | null>(null)
 
-  // Push to history (called after any meaningful change)
   const histPush = useCallback((t: ToolSlug, p: Params, l: Layer[]) => {
-    const entry: HistoryEntry = { tool: t, params: JSON.parse(JSON.stringify(p)), layers: JSON.parse(JSON.stringify(l)) }
+    const entry: HistoryEntry = {
+      tool: t,
+      params: JSON.parse(JSON.stringify(p)),
+      layers: JSON.parse(JSON.stringify(l)),
+    }
     histRef.current.splice(histIdx.current + 1)
     histRef.current.push(entry)
     if (histRef.current.length > 50) histRef.current.shift()
     histIdx.current = histRef.current.length - 1
   }, [])
 
-  // Push initial state
+  // Init history
   useEffect(() => {
     histPush(initialTool, getDefaultParams(initialTool), DEFAULT_LAYERS)
   }, []) // eslint-disable-line
 
-  // Switch tool — canvas size PRESERVED
+  // Switch tool — canvas size NEVER changes
   const switchTool = useCallback((slug: ToolSlug) => {
     const newParams = getDefaultParams(slug)
     setTool(slug)
     setParams(newParams)
+    // Canvas size intentionally NOT reset
     router.push(`/tool/${slug}`, { scroll: false })
-    histPush(slug, newParams, layers)
+    histPush(slug, newParams, DEFAULT_LAYERS)
     setMobileTab('controls')
-  }, [layers, router, histPush])
+  }, [router, histPush])
 
   const updateParam = useCallback((key: string, value: unknown) => {
-    setParams(prev => {
-      const next = { ...prev, [key]: value }
-      return next
-    })
+    setParams(prev => ({ ...prev, [key]: value }))
   }, [])
 
   const updateParams = useCallback((updates: Params) => {
     setParams(prev => ({ ...prev, ...updates }))
   }, [])
 
-  // Shuffle
+  // Shuffle — use functional update to always get fresh params
   const shuffleAll = useCallback(() => {
     setParams(prev => {
       const next = { ...prev }
@@ -96,11 +97,14 @@ export default function Studio({ initialTool }: { initialTool: ToolSlug }) {
       if ('cx' in next) { next.cx = Math.round(15 + Math.random() * 70); next.cy = Math.round(15 + Math.random() * 70) }
       if ('freq' in next) next.freq = +(0.5 + Math.random() * 6).toFixed(1)
       if ('scale' in next && (next.scale as number) < 15) next.scale = +(0.5 + Math.random() * 5).toFixed(1)
+      if ('amp' in next) next.amp = Math.round(10 + Math.random() * 80)
+      if ('count' in next && (next.count as number) < 100) next.count = Math.round(3 + Math.random() * 20)
+      if ('warp' in next) next.warp = +(Math.random() * 6).toFixed(1)
       return next
     })
   }, [])
 
-  // Undo
+  // Undo/Redo
   const undo = useCallback(() => {
     if (histIdx.current <= 0) return
     histIdx.current--
@@ -112,7 +116,6 @@ export default function Studio({ initialTool }: { initialTool: ToolSlug }) {
     router.push(`/tool/${entry.tool}`, { scroll: false })
   }, [router])
 
-  // Redo
   const redo = useCallback(() => {
     if (histIdx.current >= histRef.current.length - 1) return
     histIdx.current++
@@ -124,15 +127,17 @@ export default function Studio({ initialTool }: { initialTool: ToolSlug }) {
     router.push(`/tool/${entry.tool}`, { scroll: false })
   }, [router])
 
-  // Push to history when params change (debounced)
+  // Auto-push history on param change (debounced 800ms)
   const histTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const paramsRef = useRef(params)
+  paramsRef.current = params
   useEffect(() => {
     if (histTimerRef.current) clearTimeout(histTimerRef.current)
     histTimerRef.current = setTimeout(() => {
-      histPush(tool, params, layers)
-    }, 600)
+      histPush(tool, paramsRef.current, layers)
+    }, 800)
     return () => { if (histTimerRef.current) clearTimeout(histTimerRef.current) }
-  }, [params]) // eslint-disable-line
+  }, [params, tool]) // eslint-disable-line
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -146,11 +151,16 @@ export default function Studio({ initialTool }: { initialTool: ToolSlug }) {
     return () => window.removeEventListener('keydown', handler)
   }, [undo, redo]) // eslint-disable-line
 
-  // Canvas size handlers — save to ref too
-  const handleCanvasW = useCallback((w: number) => { setCanvasW(w); canvasWRef.current = w }, [])
-  const handleCanvasH = useCallback((h: number) => { setCanvasH(h); canvasHRef.current = h }, [])
+  const handleCanvasW = useCallback((w: number) => {
+    const v = Math.max(1, Math.min(8000, w))
+    setCanvasW(v); canvasWRef.current = v
+  }, [])
 
-  // Download
+  const handleCanvasH = useCallback((h: number) => {
+    const v = Math.max(1, Math.min(8000, h))
+    setCanvasH(v); canvasHRef.current = v
+  }, [])
+
   const handleDownloadClick = useCallback((fmt: string) => {
     setPendingFmt(fmt)
     const nextCount = downloadCount + 1
@@ -159,34 +169,30 @@ export default function Studio({ initialTool }: { initialTool: ToolSlug }) {
     else setShowDownload(true)
   }, [downloadCount])
 
-  // Theme
+  // Theme — properly toggles dark/light class on html element
   const toggleTheme = useCallback(() => {
     setIsDark(d => {
       const next = !d
-      document.documentElement.classList.toggle('light', next === false)
+      const html = document.documentElement
+      if (next) {
+        html.classList.remove('light')
+        html.classList.add('dark')
+      } else {
+        html.classList.remove('dark')
+        html.classList.add('light')
+      }
       return next
-    })
-  }, [])
-
-  // Copy to clipboard
-  const copyToClipboard = useCallback(async () => {
-    const canvas = document.querySelector('canvas') as HTMLCanvasElement
-    if (!canvas) return
-    canvas.toBlob(async blob => {
-      if (!blob) return
-      try {
-        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
-        alert('Copied to clipboard!')
-      } catch { alert('Copy not supported in this browser') }
     })
   }, [])
 
   const currentTool = getTool(tool)
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', background: 'var(--bg)', color: 'var(--t1)' }}>
-
-      {/* Header */}
+    <div style={{
+      display: 'flex', flexDirection: 'column',
+      height: '100vh', overflow: 'hidden',
+      background: 'var(--bg)', color: 'var(--t1)',
+    }}>
       <Header
         tool={currentTool}
         canvasW={canvasW}
@@ -197,18 +203,13 @@ export default function Studio({ initialTool }: { initialTool: ToolSlug }) {
         onUndo={undo}
         onRedo={redo}
         onDownload={handleDownloadClick}
-        onCopy={copyToClipboard}
         onToggleTheme={toggleTheme}
         isDark={isDark}
       />
 
-      {/* Desktop Layout */}
+      {/* ── Desktop ── */}
       <div className="hidden md:flex flex-1 overflow-hidden">
-
-        {/* Left: Tool Picker */}
         <ToolPicker activeTool={tool} onPick={switchTool} />
-
-        {/* Center: Canvas */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <Canvas
             tool={tool}
@@ -219,9 +220,11 @@ export default function Studio({ initialTool }: { initialTool: ToolSlug }) {
           />
           <AdSlot placement="banner" style={{ flexShrink: 0 }} />
         </div>
-
-        {/* Right: Controls */}
-        <div style={{ width: 268, borderLeft: '1px solid var(--b1)', background: 'var(--s1)', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+        <div style={{
+          width: 272, borderLeft: '1px solid var(--b1)',
+          background: 'var(--s1)', overflowY: 'auto',
+          display: 'flex', flexDirection: 'column',
+        }}>
           <Controls
             tool={tool}
             params={params}
@@ -244,7 +247,7 @@ export default function Studio({ initialTool }: { initialTool: ToolSlug }) {
         </div>
       </div>
 
-      {/* Mobile Layout */}
+      {/* ── Mobile ── */}
       <div className="flex md:hidden flex-1 flex-col overflow-hidden">
         <div style={{ flexShrink: 0 }}>
           <Canvas
@@ -258,7 +261,7 @@ export default function Studio({ initialTool }: { initialTool: ToolSlug }) {
           <AdSlot placement="banner" />
         </div>
         <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch' as 'auto' }}>
-          {mobileTab === 'tools' && <ToolPicker activeTool={tool} onPick={switchTool} mobile />}
+          {mobileTab === 'tools'    && <ToolPicker activeTool={tool} onPick={switchTool} mobile />}
           {mobileTab === 'controls' && (
             <>
               <Controls tool={tool} params={params} onUpdateParam={updateParam} onUpdateParams={updateParams} onShuffle={shuffleAll} uploadImgRef={uploadImgRef} />
@@ -272,30 +275,17 @@ export default function Studio({ initialTool }: { initialTool: ToolSlug }) {
         <MobileTabBar active={mobileTab} onChange={setMobileTab} />
       </div>
 
-      {/* Modals */}
       {showDownload && (
-        <DownloadModal
-          tool={tool}
-          params={{ ...params, _uploadImg: uploadImgRef.current }}
-          layers={layers}
-          canvasW={canvasW}
-          canvasH={canvasH}
-          quality={quality}
-          initialFormat={pendingFmt}
-          onClose={() => setShowDownload(false)}
-        />
+        <DownloadModal tool={tool} params={{ ...params, _uploadImg: uploadImgRef.current }} layers={layers} canvasW={canvasW} canvasH={canvasH} quality={quality} initialFormat={pendingFmt} onClose={() => setShowDownload(false)} />
       )}
       {showInterstitial && (
-        <InterstitialAd
-          onContinue={() => { setShowInterstitial(false); setShowDownload(true) }}
-          onClose={() => setShowInterstitial(false)}
-        />
+        <InterstitialAd onContinue={() => { setShowInterstitial(false); setShowDownload(true) }} onClose={() => setShowInterstitial(false)} />
       )}
     </div>
   )
 }
 
-// Export Section
+// ── Export Section ──
 function ExportSection({ quality, onQualityChange, canvasW, canvasH, onCanvasWChange, onCanvasHChange, onDownload }: {
   quality: number; onQualityChange: (q: number) => void
   canvasW: number; canvasH: number
@@ -303,26 +293,36 @@ function ExportSection({ quality, onQualityChange, canvasW, canvasH, onCanvasWCh
   onDownload: (fmt: string) => void
 }) {
   const PRESETS = [
-    { label: 'HD',       w: 1920, h: 1080 },
-    { label: '4K',       w: 3840, h: 2160 },
-    { label: 'Square',   w: 1080, h: 1080 },
-    { label: 'Portrait', w: 1080, h: 1920 },
-    { label: 'OG Image', w: 1200, h: 628  },
-    { label: 'Twitter',  w: 1500, h: 500  },
-    { label: 'YouTube',  w: 2048, h: 1152 },
-    { label: 'Instagram',w: 1080, h: 1080 },
+    { label: 'HD',        w: 1920, h: 1080 },
+    { label: '4K',        w: 3840, h: 2160 },
+    { label: 'Square',    w: 1080, h: 1080 },
+    { label: 'Portrait',  w: 1080, h: 1920 },
+    { label: 'OG Image',  w: 1200, h: 628  },
+    { label: 'Twitter',   w: 1500, h: 500  },
+    { label: 'YouTube',   w: 2048, h: 1152 },
+    { label: 'Instagram', w: 1080, h: 1080 },
   ]
   return (
     <div style={{ padding: 14, borderTop: '1px solid var(--b1)' }}>
       <div style={{ fontSize: 9, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--t3)', marginBottom: 12 }}>Export</div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-        <input type="number" value={canvasW} onChange={e => onCanvasWChange(+e.target.value)} style={{ width: 66, background: 'var(--s3)', border: '1px solid var(--b2)', color: 'var(--t1)', padding: '4px 6px', borderRadius: 6, fontSize: 11, fontFamily: 'var(--font-mono)', textAlign: 'right' }} />
+        <span style={{ fontSize: 10, color: 'var(--t3)', fontFamily: 'var(--font-mono)' }}>W</span>
+        <input type="number" value={canvasW}
+          onChange={e => onCanvasWChange(+e.target.value)}
+          onBlur={e => onCanvasWChange(+e.target.value)}
+          style={{ flex: 1, background: 'var(--s3)', border: '1px solid var(--b2)', color: 'var(--t1)', padding: '5px 6px', borderRadius: 6, fontSize: 11, fontFamily: 'var(--font-mono)', textAlign: 'right', outline: 'none' }}
+        />
         <span style={{ fontSize: 10, color: 'var(--t3)' }}>×</span>
-        <input type="number" value={canvasH} onChange={e => onCanvasHChange(+e.target.value)} style={{ width: 66, background: 'var(--s3)', border: '1px solid var(--b2)', color: 'var(--t1)', padding: '4px 6px', borderRadius: 6, fontSize: 11, fontFamily: 'var(--font-mono)', textAlign: 'right' }} />
+        <input type="number" value={canvasH}
+          onChange={e => onCanvasHChange(+e.target.value)}
+          onBlur={e => onCanvasHChange(+e.target.value)}
+          style={{ flex: 1, background: 'var(--s3)', border: '1px solid var(--b2)', color: 'var(--t1)', padding: '5px 6px', borderRadius: 6, fontSize: 11, fontFamily: 'var(--font-mono)', textAlign: 'right', outline: 'none' }}
+        />
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 12 }}>
         {PRESETS.map(p => (
-          <button key={p.label} onClick={() => { onCanvasWChange(p.w); onCanvasHChange(p.h) }} style={{ fontSize: 10, padding: '3px 8px', borderRadius: 5, background: 'var(--s3)', border: '1px solid var(--b2)', color: 'var(--t2)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+          <button key={p.label} onClick={() => { onCanvasWChange(p.w); onCanvasHChange(p.h) }}
+            style={{ fontSize: 10, padding: '3px 8px', borderRadius: 5, background: 'var(--s3)', border: '1px solid var(--b2)', color: 'var(--t2)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
             {p.label}
           </button>
         ))}
@@ -334,12 +334,12 @@ function ExportSection({ quality, onQualityChange, canvasW, canvasH, onCanvasWCh
         </div>
         <input type="range" min={1} max={100} value={quality} onChange={e => onQualityChange(+e.target.value)} />
       </div>
-      <button onClick={() => onDownload('png')} style={{ width: '100%', padding: '10px', background: 'var(--acc)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', marginBottom: 6, fontFamily: 'var(--font-sans)' }}>
+      <button onClick={() => onDownload('png')} style={{ width: '100%', padding: 10, background: 'var(--acc)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', marginBottom: 6, fontFamily: 'var(--font-sans)' }}>
         ↓ Download PNG
       </button>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5 }}>
         {['jpeg', 'webp'].map(fmt => (
-          <button key={fmt} onClick={() => onDownload(fmt)} style={{ padding: '8px', background: 'var(--s3)', border: '1px solid var(--b2)', color: 'var(--t1)', borderRadius: 7, fontSize: 11, fontWeight: 500, cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+          <button key={fmt} onClick={() => onDownload(fmt)} style={{ padding: 8, background: 'var(--s3)', border: '1px solid var(--b2)', color: 'var(--t1)', borderRadius: 7, fontSize: 11, fontWeight: 500, cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
             ↓ {fmt.toUpperCase()}
           </button>
         ))}
@@ -348,7 +348,7 @@ function ExportSection({ quality, onQualityChange, canvasW, canvasH, onCanvasWCh
   )
 }
 
-// Mobile Tab Bar
+// ── Mobile Tab Bar ──
 function MobileTabBar({ active, onChange }: { active: MobileTab; onChange: (t: MobileTab) => void }) {
   const tabs: { id: MobileTab; label: string; icon: string }[] = [
     { id: 'tools',    label: 'Tools',    icon: '⊞' },
@@ -358,7 +358,14 @@ function MobileTabBar({ active, onChange }: { active: MobileTab; onChange: (t: M
   return (
     <div style={{ flexShrink: 0, display: 'flex', height: 56, background: 'var(--s1)', borderTop: '1px solid var(--b1)' }}>
       {tabs.map(tab => (
-        <button key={tab.id} onClick={() => onChange(tab.id)} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, border: 'none', background: 'transparent', color: active === tab.id ? 'var(--acc)' : 'var(--t3)', fontSize: 9, fontWeight: 600, letterSpacing: '0.06em', cursor: 'pointer', fontFamily: 'var(--font-sans)', textTransform: 'uppercase', borderTop: active === tab.id ? '2px solid var(--acc)' : '2px solid transparent' }}>
+        <button key={tab.id} onClick={() => onChange(tab.id)} style={{
+          flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
+          justifyContent: 'center', gap: 3, border: 'none', background: 'transparent',
+          color: active === tab.id ? 'var(--acc)' : 'var(--t3)',
+          fontSize: 9, fontWeight: 600, letterSpacing: '0.06em', cursor: 'pointer',
+          fontFamily: 'var(--font-sans)', textTransform: 'uppercase',
+          borderTop: active === tab.id ? '2px solid var(--acc)' : '2px solid transparent',
+        }}>
           <span style={{ fontSize: 20 }}>{tab.icon}</span>
           {tab.label}
         </button>
