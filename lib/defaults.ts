@@ -15,15 +15,15 @@ export function getDefaultParams(slug: ToolSlug): Params {
     case 'duotone':
       return { colorA: '#0a0025', colorB: '#ff6b9d', noiseScale: 3, noiseOct: 4, contrast: 1.2, seed: randInt() }
     case 'blobs':
-      return { colors: [...PALETTES.ocean], count: 6, size: 60, softness: 70, bg: '#030414', seed: randInt() }
+      return { colors: [...PALETTES.ocean], count: 6, size: 60, softness: 70, bg: '#030414', blur: 8, opacity: 0.9, seed: randInt() }
     case 'waves':
-      return { colors: [...PALETTES.aurora], count: 6, amp: 38, freq: 2.2, phase: 0, curve: 1, bg: '#080616', seed: randInt() }
+      return { colors: [...PALETTES.aurora], count: 6, amp: 38, freq: 2.2, phase: 0, curve: 1, lineWidth: 0, opacity: 1, bg: '#080616', seed: randInt() }
     case 'fluid':
-      return { colors: [...PALETTES.nordic], scale: 2.2, warp: 3.5, octaves: 5, brightness: 1.1, seed: randInt() }
+      return { colors: [...PALETTES.nordic], scale: 2.2, warp: 3.5, octaves: 5, brightness: 1.1, contrast: 1.0, seed: randInt() }
     case 'bokeh':
-      return { colors: [...PALETTES.cosmic], count: 70, minR: 15, maxR: 140, rings: 1, bg: '#030415', seed: randInt() }
+      return { colors: [...PALETTES.cosmic], count: 70, minR: 15, maxR: 140, rings: 1, blur: 0, opacity: 0.8, bg: '#030415', seed: randInt() }
     case 'starburst':
-      return { colors: ['#4f8ef7', '#fffbe6'], rays: 14, length: 82, cx: 50, cy: 50, width: 1.4, glow: 1, bg: '#04050d', seed: randInt() }
+      return { colors: ['#4f8ef7', '#fffbe6'], rays: 14, length: 82, cx: 50, cy: 50, width: 1.4, glow: 1, rotation: 0, bg: '#04050d', seed: randInt() }
     case 'perlin-noise':
       return { colors: [...PALETTES.nordic], scale: 3.2, octaves: 5, contrast: 1.3, offX: 0, offY: 0, seed: randInt() }
     case 'marble':
@@ -54,17 +54,17 @@ export function getDefaultParams(slug: ToolSlug): Params {
       return { colors: [...PALETTES.forest], count: 20, borders: 1, fill: 1, borderOp: 0.2, borderW: 1, bg: '#060f0c', dots: 1, seed: randInt() }
     case 'custom-tile':
       return { tileW: 100, tileH: 100, tintCol: '#ffffff', tintAmt: 0, scale: 1, rotation: 0, bg: '#050810', offX: 0, offY: 0, opacity: 1 }
-    // SVG Patterns
+    // SVG Patterns — now with angle, distance, variation
     case 'chevron':
-      return { fg: '#5b7cf6', bg: '#0e0f11', size: 40, strokeWidth: 2, opacity: 1, angle: 0, spacing: 0 }
+      return { fg: '#5b7cf6', bg: '#0e0f11', size: 40, strokeWidth: 2, opacity: 1, angle: 0, spacing: 0, variation: 0 }
     case 'diamonds':
-      return { fg: '#5b7cf6', bg: '#0e0f11', size: 40, strokeWidth: 1.5, filled: 0, opacity: 1 }
+      return { fg: '#5b7cf6', bg: '#0e0f11', size: 40, strokeWidth: 1.5, filled: 0, opacity: 1, angle: 0, variation: 0 }
     case 'triangles':
-      return { fg: '#5b7cf6', bg: '#0e0f11', size: 50, strokeWidth: 1.5, filled: 0, opacity: 1, alternate: 1 }
+      return { fg: '#5b7cf6', bg: '#0e0f11', size: 50, strokeWidth: 1.5, filled: 0, opacity: 1, alternate: 1, angle: 0, variation: 0 }
     case 'zigzag':
-      return { fg: '#5b7cf6', bg: '#0e0f11', size: 30, strokeWidth: 2, amplitude: 15, opacity: 1 }
+      return { fg: '#5b7cf6', bg: '#0e0f11', size: 30, strokeWidth: 2, amplitude: 15, opacity: 1, angle: 0, variation: 0 }
     case 'circles':
-      return { fg: '#5b7cf6', bg: '#0e0f11', size: 60, strokeWidth: 1.5, opacity: 1, fill: 0 }
+      return { fg: '#5b7cf6', bg: '#0e0f11', size: 60, strokeWidth: 1.5, opacity: 1, fill: 0, angle: 0, variation: 0 }
     // Typography
     case 'text-pattern':
       return { text: 'STUDIO', fg: '#5b7cf6', bg: '#0e0f11', fontSize: 32, fontWeight: '700', opacity: 0.15, angle: -30, spacing: 20, fontFamily: 'sans-serif' }
@@ -75,18 +75,16 @@ export function getDefaultParams(slug: ToolSlug): Params {
   }
 }
 
-// Canvas size presets
 export const CANVAS_PRESETS = [
-  { label: 'HD 1080p',        width: 1920, height: 1080, category: 'Standard' },
-  { label: '2K',              width: 2560, height: 1440, category: 'Standard' },
-  { label: '4K',              width: 3840, height: 2160, category: 'Standard' },
-  { label: '720p',            width: 1280, height: 720,  category: 'Standard' },
-  { label: 'Square',          width: 1080, height: 1080, category: 'Standard' },
-  { label: 'Portrait',        width: 1080, height: 1920, category: 'Standard' },
-  { label: 'OG Image',        width: 1200, height: 628,  category: 'Standard' },
-  { label: 'Twitter Banner',  width: 1500, height: 500,  category: 'Standard' },
-  { label: 'YouTube Thumb',   width: 2048, height: 1152, category: 'Standard' },
-  { label: 'Instagram Post',  width: 1080, height: 1080, category: 'Standard' },
-  { label: 'Instagram Story', width: 1080, height: 1920, category: 'Standard' },
-  { label: 'LinkedIn Banner', width: 1584, height: 396,  category: 'Standard' },
+  { label: 'HD 1080p',        width: 1920, height: 1080 },
+  { label: '2K',              width: 2560, height: 1440 },
+  { label: '4K',              width: 3840, height: 2160 },
+  { label: '720p',            width: 1280, height: 720  },
+  { label: 'Square',          width: 1080, height: 1080 },
+  { label: 'Portrait',        width: 1080, height: 1920 },
+  { label: 'OG Image',        width: 1200, height: 628  },
+  { label: 'Twitter Banner',  width: 1500, height: 500  },
+  { label: 'YouTube Thumb',   width: 2048, height: 1152 },
+  { label: 'Instagram Story', width: 1080, height: 1920 },
+  { label: 'LinkedIn Banner', width: 1584, height: 396  },
 ] as const
